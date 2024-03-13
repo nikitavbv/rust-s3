@@ -201,12 +201,14 @@ pub trait Request {
             _ => unreachable!(),
         };
 
+        let url_no_sig = self.presigned_url_no_sig(expiry, custom_headers.as_ref(), custom_queries.as_ref())
+            .await?;
+        let authorization = self.presigned_authorization(custom_headers.as_ref())
+            .await?;
         Ok(format!(
             "{}&X-Amz-Signature={}",
-            self.presigned_url_no_sig(expiry, custom_headers.as_ref(), custom_queries.as_ref())
-                .await?,
-            self.presigned_authorization(custom_headers.as_ref())
-                .await?
+            url_no_sig,
+            authorization
         ))
     }
 
@@ -290,11 +292,13 @@ pub trait Request {
         } else {
             bucket.session_token().await?
         };
+
+        let access_key = self.bucket().access_key().await?.unwrap_or_default();
         let url = Url::parse(&format!(
             "{}{}{}",
             self.url()?,
             &signing::authorization_query_params_no_sig(
-                &self.bucket().access_key().await?.unwrap_or_default(),
+                &access_key,
                 &self.datetime(),
                 &self.bucket().region(),
                 expiry,
